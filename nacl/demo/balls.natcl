@@ -21,7 +21,7 @@ set restoreForce  [expr {0.002*$frameInterval}]
 
 set mouseX 99999
 set mouseY 99999
- 
+
 set balls {}
 
 set blue   "#3A5BCD"
@@ -54,7 +54,7 @@ newball 174 127 0 0 $blue
 newball 179 110 0 0 $blue
 newball 166 109 0 0 $blue
 newball 156 110 0 0 $blue
- 
+
 # O
 newball 210 81 0 0 $red
 newball 197 91 0 0 $red
@@ -67,7 +67,7 @@ newball 244 114 0 0 $red
 newball 242 98 0 0 $red
 newball 237 86 0 0 $red
 newball 225 81 0 0 $red
- 
+
 # O
 set oOffset 67
 newball [expr {$oOffset + 210}] 81 0 0 $yellow
@@ -81,7 +81,7 @@ newball [expr {$oOffset + 244}] 114 0 0 $yellow
 newball [expr {$oOffset + 242}] 98 0 0 $yellow
 newball [expr {$oOffset + 237}] 86 0 0 $yellow
 newball [expr {$oOffset + 225}] 81 0 0 $yellow
- 
+
 # G
 newball 370 80 0 0 $blue
 newball 358 79 0 0 $blue
@@ -101,7 +101,7 @@ newball 352 166 0 0 $blue
 newball 367 161 0 0 $blue
 newball 371 149 0 0 $blue
 newball 366 137 0 0 $blue
- 
+
 # L
 newball 394 49 0 0 $green
 newball 381 50 0 0 $green
@@ -112,7 +112,7 @@ newball 390 105 0 0 $green
 newball 390 118 0 0 $green
 newball 388 128 0 0 $green
 newball 400 128 0 0 $green
- 
+
 # E
 newball 426 101 0 0 $red
 newball 436 98 0 0 $red
@@ -206,7 +206,6 @@ proc updateStage {} {
 	canv_moveto $id [expr {int($x+0.5)}] [expr {int($y+0.5)}]
     }
 }
-    
 
 proc motioncb {x y} {
     set ::mouseX $x

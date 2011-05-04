@@ -16,7 +16,7 @@ set ::canv_status_coords 0
 proc canv_addhook {} {
     if {$::canv_hooked} return
     set ::canv_hooked 1
-    lappend ::naclhooks canv_hook
+    ::nacl hook canv_hook
 }
 
 proc canv_new_items {} {
@@ -88,7 +88,7 @@ proc canv_hook {} {
 	if {$::canv_verbose} {
 	    printf "CANV_HOOK emits:\n$js\n"
 	}
-	append ::JS $js
+	nacl js $js
     }
 }
 
@@ -189,19 +189,19 @@ proc canv_moveto {id x y} {
 proc canv_bind {evt cb} {
     switch -exact -- $evt {
 	<Motion> {
-	    append ::JS "canvas.onmousemove = function (evt) {
-			tclDo([jsquote "$cb "]+(evt.clientX-canvas.offsetLeft)+' '+(evt.clientY-canvas.offsetTop));
-		};\n"
+	    nacl js "canvas.onmousemove = function (evt) {
+			tclDo([::nacl jsquote "$cb "]+(evt.clientX-canvas.offsetLeft)+' '+(evt.clientY-canvas.offsetTop));
+		}"
 	}
 	<Leave> {
-	    append ::JS "canvas.onmouseout = function (evt) {
-			tclDo([jsquote "$cb "]);
-		};\n"
+	    nacl js "canvas.onmouseout = function (evt) {
+			tclDo([::nacl jsquote "$cb "]);
+		}"
 	}
 	<Enter> {
-	    append ::JS "canvas.onmouseover = function (evt) {
-			tclDo([jsquote "$cb "]);
-		};\n"
+	    nacl js "canvas.onmouseover = function (evt) {
+			tclDo([::nacl jsquote "$cb "]);
+		}"
 	}
 	default {error "Unsupported event '$evt'"}
     }
