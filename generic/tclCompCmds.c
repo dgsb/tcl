@@ -2154,6 +2154,87 @@ TclCompileErrorCmd(
 /*
  *----------------------------------------------------------------------
  *
+ * TclCompileEvalCmd --
+ *
+ *	Procedure called to compile the "eval" command.
+ *
+ * Results:
+ *	Returns TCL_OK for a successful compile. Returns TCL_ERROR to defer
+ *	evaluation to runtime.
+ *
+ * Side effects:
+ *	Instructions are added to envPtr to execute the "eval" command at
+ *	runtime.
+ *
+ *----------------------------------------------------------------------
+ */
+
+int
+TclCompileEvalCmd(
+    Tcl_Interp *interp,		/* Used for context. */
+    Tcl_Parse *parsePtr,	/* Points to a parse structure for the command
+				 * created by Tcl_ParseCommand. */
+    Command *cmdPtr,		/* Points to defintion of command being
+				 * compiled. */
+    CompileEnv *envPtr)		/* Holds resulting instructions. */
+{
+    DefineLineInformation;	/* TIP #280 */
+    Tcl_Token *tokenPtr;
+    Tcl_Obj **objPtrs, *objPtr;
+    int i, len;
+    const char *ptr;
+
+    /*
+     * Only compile if all words are compile-time constants.
+     */
+
+    tokenPtr = parsePtr->tokenPtr;
+    for (i=1 ; i<parsePtr->numWords ; i++) {
+	tokenPtr = TokenAfter(tokenPtr);
+	if (!TclWordKnownAtCompileTime(tokenPtr, NULL)) {
+	    return TCL_ERROR;
+	}
+    }
+
+    /*
+     * A special case: with just one argument, we can retain all compilation
+     * information. Hopefully this is rare in practice, as it is where there
+     * is nothing gained at all from using [eval]!
+     */
+
+    if (parsePtr->numWords == 2) {
+	tokenPtr = TokenAfter(parsePtr->tokenPtr);
+	BODY(tokenPtr, 1);
+	return TCL_OK;
+    }
+
+    /*
+     * Several constants, which should be concatenated and evaluated.
+     */
+
+    tokenPtr = parsePtr->tokenPtr;
+    objPtrs = ckalloc(sizeof(Tcl_Obj *) * (parsePtr->numWords-1));
+    for (i=1 ; i<parsePtr->numWords ; i++) {
+	tokenPtr = TokenAfter(tokenPtr);
+	TclNewObj(objPtrs[i-1]);
+	TclWordKnownAtCompileTime(tokenPtr, objPtrs[i-1]);
+    }
+    objPtr = Tcl_ConcatObj(i-1, objPtrs);
+    ptr = Tcl_GetStringFromObj(objPtr, &len);
+    for (; i-->0 ;) {
+	TclDecrRefCount(objPtrs[i]);
+    }
+    ckfree(objPtrs);
+
+    fprintf(stderr,"debug:%s\n",ptr);
+    //TclCompileScript(interp, ptr, len, envPtr); // TODO (crashes currently)
+    TclDecrRefCount(objPtr);
+    return TCL_ERROR; // TODO (crashes currently)
+}
+
+/*
+ *----------------------------------------------------------------------
+ *
  * TclCompileExprCmd --
  *
  *	Procedure called to compile the "expr" command.
