@@ -293,12 +293,14 @@ VarHashCreateVar(
 	    switch (nCleanup) {					\
 	    case 1: goto cleanup1_pushObjResultPtr;		\
 	    case 2: goto cleanup2_pushObjResultPtr;		\
+	    case 0: break;					\
 	    }							\
 	} else {						\
 	    pc += (pcAdjustment);				\
 	    switch (nCleanup) {					\
 	    case 1: goto cleanup1;				\
 	    case 2: goto cleanup2;				\
+	    case 0: break;					\
 	    }							\
 	}							\
     } while (0)
@@ -359,6 +361,8 @@ VarHashCreateVar(
 #define OBJ_AT_DEPTH(n)	*(tosPtr-(n))
 
 #define CURR_DEPTH	((ptrdiff_t) (tosPtr - initTosPtr))
+
+#define STACK_BASE(esPtr) ((esPtr)->stackWords - 1)
 
 /*
  * Macros used to trace instruction execution. The macros TRACE,
@@ -451,7 +455,7 @@ VarHashCreateVar(
 		    (&((objPtr)->internalRep.doubleValue)), TCL_OK) :	\
     ((((objPtr)->typePtr == NULL) && ((objPtr)->bytes == NULL)) ||	\
     (((objPtr)->bytes != NULL) && ((objPtr)->length == 0)))		\
-	? TCL_ERROR :							\
+	? (*(tPtr) = TCL_NUMBER_LONG),TCL_ERROR :			\
     TclGetNumberFromObj((interp), (objPtr), (ptrPtr), (tPtr)))
 #else /* !TCL_WIDE_INT_IS_LONG */
 #define GetNumberFromObj(interp, objPtr, ptrPtr, tPtr) \
@@ -471,7 +475,7 @@ VarHashCreateVar(
 		    (&((objPtr)->internalRep.doubleValue)), TCL_OK) :	\
     ((((objPtr)->typePtr == NULL) && ((objPtr)->bytes == NULL)) ||	\
     (((objPtr)->bytes != NULL) && ((objPtr)->length == 0)))		\
-	? TCL_ERROR :							\
+	? (*(tPtr) = TCL_NUMBER_LONG),TCL_ERROR :			\
     TclGetNumberFromObj((interp), (objPtr), (ptrPtr), (tPtr)))
 #endif /* TCL_WIDE_INT_IS_LONG */
 
@@ -885,7 +889,7 @@ TclCreateExecEnv(
     esPtr->nextPtr = NULL;
     esPtr->markerPtr = NULL;
     esPtr->endPtr = &esPtr->stackWords[size-1];
-    esPtr->tosPtr = &esPtr->stackWords[-1];
+    esPtr->tosPtr = STACK_BASE(esPtr);
 
     Tcl_MutexLock(&execMutex);
     if (!execInitialized) {
@@ -1106,8 +1110,8 @@ GrowEvaluationStack(
     if (esPtr->nextPtr) {
 	oldPtr = esPtr;
 	esPtr = oldPtr->nextPtr;
-	currElems = esPtr->endPtr - &esPtr->stackWords[-1];
-	if (esPtr->markerPtr || (esPtr->tosPtr != &esPtr->stackWords[-1])) {
+	currElems = esPtr->endPtr - STACK_BASE(esPtr);
+	if (esPtr->markerPtr || (esPtr->tosPtr != STACK_BASE(esPtr))) {
 	    Tcl_Panic("STACK: Stack after current is in use");
 	}
 	if (esPtr->nextPtr) {
@@ -1119,7 +1123,7 @@ GrowEvaluationStack(
 	DeleteExecStack(esPtr);
 	esPtr = oldPtr;
     } else {
-	currElems = esPtr->endPtr - &esPtr->stackWords[-1];
+	currElems = esPtr->endPtr - STACK_BASE(esPtr);
     }
 
     /*
@@ -1273,10 +1277,10 @@ TclStackFree(
     while (esPtr->nextPtr) {
 	esPtr = esPtr->nextPtr;
     }
-    esPtr->tosPtr = &esPtr->stackWords[-1];
+    esPtr->tosPtr = STACK_BASE(esPtr);
     while (esPtr->prevPtr) {
 	ExecStack *tmpPtr = esPtr->prevPtr;
-	if (tmpPtr->tosPtr == &tmpPtr->stackWords[-1]) {
+	if (tmpPtr->tosPtr == STACK_BASE(tmpPtr)) {
 	    DeleteExecStack(tmpPtr);
 	} else {
 	    break;
@@ -5254,19 +5258,41 @@ TEBCresume(
 
     {
 	const char *string1, *string2;
+	int trim1, trim2;
 
+    case INST_STRTRIM:
+	valuePtr = OBJ_UNDER_TOS;	/* String */
+	value2Ptr = OBJ_AT_TOS;		/* TrimSet */
+	string2 = TclGetStringFromObj(value2Ptr, &length2);
+	string1 = TclGetStringFromObj(valuePtr, &length);
+	trim1 = TclTrimLeft(string1, length, string2, length2);
+	if (trim1 < length) {
+	    trim2 = TclTrimRight(string1, length, string2, length2);
+	} else {
+	    trim2 = 0;
+	}
+	if (trim1 == 0 && trim2 == 0) {
+	    TRACE_WITH_OBJ(("\"%.30s\" \"%.30s\" => ", valuePtr, value2Ptr),
+		    valuePtr);
+	    NEXT_INST_F(1, 1, 0);
+	} else {
+	    objResultPtr = Tcl_NewStringObj(string1+trim1, length-trim1-trim2);
+	    TRACE_WITH_OBJ(("\"%.30s\" \"%.30s\" => ", valuePtr, value2Ptr),
+		    objResultPtr);
+	    NEXT_INST_F(1, 2, 1);
+	}
     case INST_STRTRIM_LEFT:
 	valuePtr = OBJ_UNDER_TOS;	/* String */
 	value2Ptr = OBJ_AT_TOS;		/* TrimSet */
 	string2 = TclGetStringFromObj(value2Ptr, &length2);
 	string1 = TclGetStringFromObj(valuePtr, &length);
-	match = TclTrimLeft(string1, length, string2, length2);
-	if (match == 0) {
+	trim1 = TclTrimLeft(string1, length, string2, length2);
+	if (trim1 == 0) {
 	    TRACE_WITH_OBJ(("\"%.30s\" \"%.30s\" => ", valuePtr, value2Ptr),
 		    valuePtr);
 	    NEXT_INST_F(1, 1, 0);
 	} else {
-	    objResultPtr = Tcl_NewStringObj(string1+match, length-match);
+	    objResultPtr = Tcl_NewStringObj(string1+trim1, length-trim1);
 	    TRACE_WITH_OBJ(("\"%.30s\" \"%.30s\" => ", valuePtr, value2Ptr),
 		    objResultPtr);
 	    NEXT_INST_F(1, 2, 1);
@@ -5276,11 +5302,11 @@ TEBCresume(
 	value2Ptr = OBJ_AT_TOS;		/* TrimSet */
 	string2 = TclGetStringFromObj(value2Ptr, &length2);
 	string1 = TclGetStringFromObj(valuePtr, &length);
-	match = TclTrimRight(string1, length, string2, length2);
-	if (match == 0) {
+	trim2 = TclTrimRight(string1, length, string2, length2);
+	if (trim2 == 0) {
 	    NEXT_INST_F(1, 1, 0);
 	} else {
-	    objResultPtr = Tcl_NewStringObj(string1, length-match);
+	    objResultPtr = Tcl_NewStringObj(string1, length-trim2);
 	    NEXT_INST_F(1, 2, 1);
 	}
     }
