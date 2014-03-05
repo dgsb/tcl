@@ -399,6 +399,7 @@ WaitForConnect(
     int timeOut;		/* How long to wait. */
     int state;			/* Of calling TclWaitForFile. */
 
+    DEBUG("");
     /*
      * If an asynchronous connect is in progress, attempt to wait for it to
      * complete before reading.
